@@ -1,0 +1,780 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Mappings": {
+    "RegionMap": {
+      "us-east-1": {
+        "S3hostedzoneID": "Z3AQBSTGFYJSTF",
+        "websiteendpoint": "s3-website-us-east-1.amazonaws.com"
+      },
+      "us-west-1": {
+        "S3hostedzoneID": "Z2F56UZL2M1ACD",
+        "websiteendpoint": "s3-website-us-west-1.amazonaws.com"
+      },
+      "us-west-2": {
+        "S3hostedzoneID": "Z3BJ6K6RIION7M",
+        "websiteendpoint": "s3-website-us-west-2.amazonaws.com"
+      },
+      "eu-west-1": {
+        "S3hostedzoneID": "Z1BKCTXD74EZPE",
+        "websiteendpoint": "s3-website-eu-west-1.amazonaws.com"
+      },
+      "ap-southeast-1": {
+        "S3hostedzoneID": "Z3O0J2DXBE1FTB",
+        "websiteendpoint": "s3-website-ap-southeast-1.amazonaws.com"
+      },
+      "ap-southeast-2": {
+        "S3hostedzoneID": "Z1WCIGYICN2BYD",
+        "websiteendpoint": "s3-website-ap-southeast-2.amazonaws.com"
+      },
+      "ap-northeast-1": {
+        "S3hostedzoneID": "Z2M4EHUR26P7ZW",
+        "websiteendpoint": "s3-website-ap-northeast-1.amazonaws.com"
+      },
+      "sa-east-1": {
+        "S3hostedzoneID": "Z31GFT0UA1I2HV",
+        "websiteendpoint": "s3-website-sa-east-1.amazonaws.com"
+      }
+    }
+  },
+  "Parameters": {
+    "ApexDomainName": {
+      "Description": "Domain name for your website (example.com)",
+      "Type": "String",
+      "Default": "example.com"
+    },
+    "AppName": {
+      "Description": "App name for your website (example).  Only alphanumeric characters, dash, and underscore are supported.",
+      "Type": "String",
+      "Default": "example"
+    }
+  },
+  "Resources": {
+    "RootBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "BucketName": {
+          "Ref": "ApexDomainName"
+        },
+        "AccessControl": "PublicRead",
+        "WebsiteConfiguration": {
+          "IndexDocument": "index.html",
+          "ErrorDocument": "404.html"
+        }
+      }
+    },
+    "WWWBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": {
+          "Fn::Join": [
+            "",
+            [
+              "www.",
+              {
+                "Ref": "ApexDomainName"
+              }
+            ]
+          ]
+        },
+        "AccessControl": "BucketOwnerFullControl",
+        "WebsiteConfiguration": {
+          "RedirectAllRequestsTo": {
+            "HostName": {
+              "Ref": "RootBucket"
+            }
+          }
+        }
+      }
+    },
+    "DevBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "BucketName": {
+          "Fn::Join": [
+            "",
+            [
+              "dev.",
+              {
+                "Ref": "ApexDomainName"
+              }
+            ]
+          ]
+        },
+        "AccessControl": "PublicRead",
+        "WebsiteConfiguration": {
+          "IndexDocument": "index.html",
+          "ErrorDocument": "404.html"
+        }
+      }
+    },
+    "ArtifactBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "AccessControl": "Private"
+      }
+    },
+    "SSL": {
+      "Type": "AWS::CertificateManager::Certificate",
+      "Properties": {
+        "DomainName": {
+          "Ref": "RootBucket"
+        },
+        "SubjectAlternativeNames": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "www.",
+                {
+                  "Ref": "ApexDomainName"
+                }
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    "CDN": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Aliases": [
+            {
+              "Ref": "ApexDomainName"
+            }
+          ],
+          "Enabled": true,
+          "PriceClass": "PriceClass_All",
+          "CacheBehaviors": [
+            {
+              "TargetOriginId": {
+                "Ref": "RootBucket"
+              },
+              "PathPattern": "*.js",
+              "ViewerProtocolPolicy": "redirect-to-https",
+              "MinTTL": 0,
+              "AllowedMethods": [
+                "HEAD",
+                "GET"
+              ],
+              "CachedMethods": [
+                "HEAD",
+                "GET"
+              ],
+              "ForwardedValues": {
+                "QueryString": true,
+                "Cookies": {
+                  "Forward": "none"
+                }
+              }
+            },
+            {
+              "TargetOriginId": {
+                "Ref": "RootBucket"
+              },
+              "PathPattern": "*.css",
+              "ViewerProtocolPolicy": "redirect-to-https",
+              "MinTTL": 0,
+              "AllowedMethods": [
+                "HEAD",
+                "GET"
+              ],
+              "CachedMethods": [
+                "HEAD",
+                "GET"
+              ],
+              "ForwardedValues": {
+                "QueryString": true,
+                "Cookies": {
+                  "Forward": "none"
+                }
+              }
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "TargetOriginId": {
+              "Ref": "RootBucket"
+            },
+            "ViewerProtocolPolicy": "redirect-to-https",
+            "MinTTL": 0,
+            "AllowedMethods": [
+              "HEAD",
+              "GET"
+            ],
+            "CachedMethods": [
+              "HEAD",
+              "GET"
+            ],
+            "ForwardedValues": {
+              "QueryString": false,
+              "Cookies": {
+                "Forward": "none"
+              }
+            }
+          },
+          "Origins": [
+            {
+              "DomainName": {
+                "Fn::Join": [
+                  ".",
+                  [
+                    {
+                      "Ref": "ApexDomainName"
+                    },
+                    {
+                      "Fn::FindInMap": [
+                        "RegionMap",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        "websiteendpoint"
+                      ]
+                    }
+                  ]
+                ]
+              },
+              "Id": {
+                "Ref": "RootBucket"
+              },
+              "CustomOriginConfig": {
+                "HTTPPort": "80",
+                "HTTPSPort": "443",
+                "OriginProtocolPolicy": "http-only"
+              }
+            }
+          ],
+          "Restrictions": {
+            "GeoRestriction": {
+              "RestrictionType": "none",
+              "Locations": [
+              ]
+            }
+          },
+          "ViewerCertificate": {
+            "SslSupportMethod": "sni-only",
+            "MinimumProtocolVersion": "TLSv1",
+            "AcmCertificateArn": {
+              "Ref": "SSL"
+            }
+          }
+        }
+      }
+    },
+    "DNS": {
+      "Type": "AWS::Route53::RecordSetGroup",
+      "Properties": {
+        "HostedZoneName": {
+          "Fn::Join": [
+            "",
+            [
+              {
+                "Ref": "ApexDomainName"
+              },
+              "."
+            ]
+          ]
+        },
+        "Comment": "Zone apex alias.",
+        "RecordSets": [
+          {
+            "Name": {
+              "Ref": "ApexDomainName"
+            },
+            "Type": "A",
+            "AliasTarget": {
+              "HostedZoneId": "Z2FDTNDATAQYW2",
+              "DNSName": {
+                "Fn::GetAtt": [
+                  "CDN",
+                  "DomainName"
+                ]
+              }
+            }
+          },
+          {
+            "Name": {
+              "Fn::Join": [
+                "",
+                [
+                  "www.",
+                  {
+                    "Ref": "ApexDomainName"
+                  }
+                ]
+              ]
+            },
+            "Type": "CNAME",
+            "TTL": "900",
+            "ResourceRecords": [
+              {
+                "Fn::Join": [
+                  ".",
+                  [
+                    "www",
+                    {
+                      "Ref": "ApexDomainName"
+                    },
+                    {
+                      "Fn::FindInMap": [
+                        "RegionMap",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        "websiteendpoint"
+                      ]
+                    }
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "Name": {
+              "Fn::Join": [
+                "",
+                [
+                  "dev.",
+                  {
+                    "Ref": "ApexDomainName"
+                  }
+                ]
+              ]
+            },
+            "Type": "CNAME",
+            "TTL": "900",
+            "ResourceRecords": [
+              {
+                "Fn::Join": [
+                  ".",
+                  [
+                    "dev",
+                    {
+                      "Ref": "ApexDomainName"
+                    },
+                    {
+                      "Fn::FindInMap": [
+                        "RegionMap",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        "websiteendpoint"
+                      ]
+                    }
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "GIT": {
+      "Type": "AWS::CodeCommit::Repository",
+      "Properties": {
+        "RepositoryDescription": {
+          "Fn::Join": [
+            " ",
+            [
+              {
+                "Ref": "ApexDomainName"
+              },
+              "Code Repository"
+            ]
+          ]
+        },
+        "RepositoryName": {
+          "Ref": "ApexDomainName"
+        }
+      }
+    },
+    "CodeBuildRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "codebuild.amazonaws.com"
+                ]
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Path": "/"
+      }
+    },
+    "CodeBuildRolePolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "CodeBuildRolePolicy",
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
+                }
+              ],
+              "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+              ]
+            },
+            {
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:aws:s3:::${ArtifactBucket}"
+                },
+                {
+                  "Fn::Sub": "arn:aws:s3:::${ArtifactBucket}/*"
+                },
+                {
+                  "Fn::Sub": "arn:aws:s3:::${RootBucket}"
+                },
+                {
+                  "Fn::Sub": "arn:aws:s3:::${RootBucket}/*"
+                },
+                {
+                  "Fn::Sub": "arn:aws:s3:::${DevBucket}"
+                },
+                {
+                  "Fn::Sub": "arn:aws:s3:::${DevBucket}/*"
+                }
+              ],
+              "Action": [
+                "s3:*"
+              ]
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "CodeBuildRole"
+          }
+        ]
+      }
+    },
+    "CodeBuildRoot": {
+      "Type": "AWS::CodeBuild::Project",
+      "Properties": {
+        "Artifacts": {
+          "Type": "CODEPIPELINE"
+        },
+        "Environment": {
+          "ComputeType": "BUILD_GENERAL1_SMALL",
+          "Image": "aws/codebuild/ubuntu-base:14.04",
+          "Type": "LINUX_CONTAINER",
+          "EnvironmentVariables": [
+            {
+              "Name": "BUCKET_NAME",
+              "Value": {
+                "Ref": "RootBucket"
+              }
+            }
+          ]
+        },
+        "Name": {
+          "Fn::Join": [
+            "_",
+            [
+              {
+                "Ref": "AppName"
+              },
+              "Root_Build"
+            ]
+          ]
+        },
+        "ServiceRole": {
+          "Ref": "CodeBuildRole"
+        },
+        "Source": {
+          "Type": "CODEPIPELINE"
+        },
+        "TimeoutInMinutes": 10
+      }
+    },
+    "CodeBuildDev": {
+      "Type": "AWS::CodeBuild::Project",
+      "Properties": {
+        "Artifacts": {
+          "Type": "CODEPIPELINE"
+        },
+        "Environment": {
+          "ComputeType": "BUILD_GENERAL1_SMALL",
+          "Image": "aws/codebuild/ubuntu-base:14.04",
+          "Type": "LINUX_CONTAINER",
+          "EnvironmentVariables": [
+            {
+              "Name": "BUCKET_NAME",
+              "Value": {
+                "Ref": "DevBucket"
+              }
+            }
+          ]
+        },
+        "Name": {
+          "Fn::Join": [
+            "_",
+            [
+              {
+                "Ref": "AppName"
+              },
+              "Dev_Build"
+            ]
+          ]
+        },
+        "ServiceRole": {
+          "Ref": "CodeBuildRole"
+        },
+        "Source": {
+          "Type": "CODEPIPELINE"
+        },
+        "TimeoutInMinutes": 10
+      }
+    },
+    "CodePipelineRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "codepipeline.amazonaws.com"
+                ]
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Path": "/"
+      }
+    },
+    "CodePipelineRolePolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "CodePipelineRolePolicy",
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:GetObject",
+                "s3:GetObjectVersion",
+                "s3:GetBucketVersioning"
+              ],
+              "Resource": "*",
+              "Effect": "Allow"
+            },
+            {
+              "Action": [
+                "s3:PutObject"
+              ],
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:aws:s3:::${ArtifactBucket}"
+                },
+                {
+                  "Fn::Sub": "arn:aws:s3:::${ArtifactBucket}/*"
+                }
+              ],
+              "Effect": "Allow"
+            },
+            {
+              "Action": [
+                "codebuild:BatchGetBuilds",
+                "codebuild:StartBuild"
+              ],
+              "Resource": "*",
+              "Effect": "Allow"
+            },
+            {
+              "Action": [
+                "codecommit:GetBranch",
+                "codecommit:GetCommit",
+                "codecommit:UploadArchive",
+                "codecommit:GetUploadArchiveStatus",
+                "codecommit:CancelUploadArchive"
+              ],
+              "Resource": "*",
+              "Effect": "Allow"
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "CodePipelineRole"
+          }
+        ]
+      }
+    },
+    "CodePipelineRoot": {
+      "Type": "AWS::CodePipeline::Pipeline",
+      "Properties": {
+        "RoleArn": {
+          "Fn::GetAtt": [
+            "CodePipelineRole",
+            "Arn"
+          ]
+        },
+        "Stages": [
+          {
+            "Name": "Source",
+            "Actions": [
+              {
+                "Name": "SourceAction",
+                "ActionTypeId": {
+                  "Category": "Source",
+                  "Owner": "AWS",
+                  "Version": "1",
+                  "Provider": "CodeCommit"
+                },
+                "OutputArtifacts": [
+                  {
+                    "Name": "StaticSiteSource"
+                  }
+                ],
+                "Configuration": {
+                  "BranchName": "master",
+                  "RepositoryName": {
+                    "Fn::GetAtt": [
+                      "GIT",
+                      "Name"
+                    ]
+                  }
+                },
+                "RunOrder": 1
+              }
+            ]
+          },
+          {
+            "Name": "Build",
+            "Actions": [
+              {
+                "Name": "BuildRoot",
+                "InputArtifacts": [
+                  {
+                    "Name": "StaticSiteSource"
+                  }
+                ],
+                "ActionTypeId": {
+                  "Category": "Build",
+                  "Owner": "AWS",
+                  "Version": "1",
+                  "Provider": "CodeBuild"
+                },
+                "Configuration": {
+                  "ProjectName": {
+                    "Ref": "CodeBuildRoot"
+                  }
+                },
+                "RunOrder": 1
+              }
+            ]
+          }
+        ],
+        "ArtifactStore": {
+          "Type": "S3",
+          "Location": {
+            "Ref": "ArtifactBucket"
+          }
+        }
+      }
+    },
+    "CodePipelineDev": {
+      "Type": "AWS::CodePipeline::Pipeline",
+      "Properties": {
+        "RoleArn": {
+          "Fn::GetAtt": [
+            "CodePipelineRole",
+            "Arn"
+          ]
+        },
+        "Stages": [
+          {
+            "Name": "Source",
+            "Actions": [
+              {
+                "Name": "SourceAction",
+                "ActionTypeId": {
+                  "Category": "Source",
+                  "Owner": "AWS",
+                  "Version": "1",
+                  "Provider": "CodeCommit"
+                },
+                "OutputArtifacts": [
+                  {
+                    "Name": "StaticSiteSource"
+                  }
+                ],
+                "Configuration": {
+                  "BranchName": "develop",
+                  "RepositoryName": {
+                    "Fn::GetAtt": [
+                      "GIT",
+                      "Name"
+                    ]
+                  }
+                },
+                "RunOrder": 1
+              }
+            ]
+          },
+          {
+            "Name": "Build",
+            "Actions": [
+              {
+                "Name": "BuildDev",
+                "InputArtifacts": [
+                  {
+                    "Name": "StaticSiteSource"
+                  }
+                ],
+                "ActionTypeId": {
+                  "Category": "Build",
+                  "Owner": "AWS",
+                  "Version": "1",
+                  "Provider": "CodeBuild"
+                },
+                "Configuration": {
+                  "ProjectName": {
+                    "Ref": "CodeBuildDev"
+                  }
+                },
+                "RunOrder": 1
+              }
+            ]
+          }
+        ],
+        "ArtifactStore": {
+          "Type": "S3",
+          "Location": {
+            "Ref": "ArtifactBucket"
+          }
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "WebsiteURL": {
+      "Value": {
+        "Fn::GetAtt": [
+          "GIT",
+          "CloneUrlHttp"
+        ]
+      },
+      "Description": "CodeCommit URL"
+    }
+  }
+}
