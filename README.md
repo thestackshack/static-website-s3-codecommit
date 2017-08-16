@@ -29,7 +29,7 @@ Use your CodeCommit repo and your CodeCommit credentials to start checking in yo
 CodePipeline and CodeBuild are setup to continuously deploy your site as you push changes to your repo.  
 
 Branches and CodePipeline actions:
-**master** -> Pushes changes to APEX <example.com> (yes ssl)
+**master** -> Pushes changes to APEX `<example.com>` (yes ssl)
 **develop** -> Pushes changes to dev subdomain (no ssl)
 
 ## What should the structure of my project be?
