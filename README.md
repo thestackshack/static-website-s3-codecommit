@@ -2,6 +2,13 @@
 
 The template: [cloudformation.json](cloudformation.json)
 
+Quickly deploy a static website with SSL termination at the apex (https://example.com) with www redirect (www.example.com -> example.com).
+
+Also includes a development site for QA (dev.example.com).
+
+Built in CI/CD using CodePipeline & CodeBuild which pulls from your CodeCommit repo.  Just push your changes to either the develop or master branch and a new version of the site will be pushed.
+
+
 ## What AWS resources does this template use?
 * S3 (File storage & static website)
 * CloudFront (HTTPS & caching)
